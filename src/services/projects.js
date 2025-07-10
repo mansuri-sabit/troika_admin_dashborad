@@ -1,4 +1,5 @@
 import api from './api';
+import axios from 'axios';
 
 export const projectsService = {
   getProjects: async (page = 1, limit = 10) => {
