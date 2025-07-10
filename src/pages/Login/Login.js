@@ -34,7 +34,7 @@ const Login = () => {
     try {
       console.log('🔍 Testing backend connection...');
       
-      const response = await api.get('/health');
+      const response = await api.get('api/health');
       
       if (response.status === 200) {
         setConnectionStatus('connected');
