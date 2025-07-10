@@ -3,6 +3,7 @@ import { analyticsService } from '../../services/analytics';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import Button from '../../components/Common/Button';
 import './Reports.css';
+import api from '../../services/api';
 
 const Reports = () => {
   const [loading, setLoading] = useState(false);
