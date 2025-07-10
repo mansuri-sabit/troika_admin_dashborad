@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService } from '../../services/auth';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import './Login.css';
 
@@ -14,6 +13,9 @@ const Login = () => {
   const [connectionStatus, setConnectionStatus] = useState('checking');
   const navigate = useNavigate();
 
+  // 🔥 HARDCODED BACKEND URL - No environment variables
+  const BACKEND_URL = 'https://completetroikabackend.onrender.com';
+
   // Check backend connectivity on component mount
   useEffect(() => {
     checkBackendConnection();
@@ -21,8 +23,8 @@ const Login = () => {
 
   const checkBackendConnection = async () => {
     try {
-      // ✅ Fixed: Add /api prefix to health check
-      const response = await fetch(`https://completetroikabackend.onrender.com/api/health`, {
+      console.log('🔍 Testing backend connection...');
+      const response = await fetch(`${BACKEND_URL}/api/health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -30,14 +32,15 @@ const Login = () => {
       });
       
       if (response.ok) {
+        const data = await response.json();
         setConnectionStatus('connected');
-        console.log('✅ Backend connection successful');
+        console.log('✅ Backend connection successful:', data);
       } else {
         setConnectionStatus('error');
-        console.error('❌ Backend health check failed:', response.status);
+        console.error('❌ Backend health check failed:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('Backend connection check failed:', error);
+      console.error('❌ Backend connection check failed:', error);
       setConnectionStatus('error');
     }
   };
@@ -63,40 +66,64 @@ const Login = () => {
     setError('');
 
     try {
-      const response = await authService.login(formData.email, formData.password);
+      console.log('🔐 Attempting login with hardcoded URL...');
+      
+      // 🔥 HARDCODED LOGIN REQUEST
+      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        }),
+      });
+
+      console.log('📡 Login response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Login successful:', data);
       
       // Validate response structure
-      if (!response || !response.token) {
-        throw new Error('Invalid response from server');
+      if (!data || !data.token) {
+        throw new Error('Invalid response from server - missing token');
       }
       
       // Store authentication data
-      localStorage.setItem('token', response.token);
-      if (response.user) {
-        localStorage.setItem('user', JSON.stringify(response.user));
+      localStorage.setItem('token', data.token);
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
       }
+      
+      console.log('🎉 Authentication data stored, redirecting to dashboard...');
       
       // Navigate to dashboard
       navigate('/dashboard');
       
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       
       // Enhanced error handling for specific issues
       let errorMessage = 'Login failed';
       
-      if (error.code === 'ERR_NETWORK') {
-        errorMessage = 'Network error - please check your connection and try again';
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorMessage = 'Network error - cannot connect to server';
       } else if (error.message?.includes('CORS')) {
-        errorMessage = 'Connection error - please contact support';
-      } else if (error.response?.status === 404) {
-        errorMessage = 'Login service not found - please contact support';
-      } else if (error.response?.status === 401) {
+        errorMessage = 'CORS error - please contact support';
+      } else if (error.message?.includes('404')) {
+        errorMessage = 'Login endpoint not found - please contact support';
+      } else if (error.message?.includes('401')) {
         errorMessage = 'Invalid email or password';
-      } else if (error.response?.status === 429) {
+      } else if (error.message?.includes('429')) {
         errorMessage = 'Too many login attempts - please try again later';
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+      } else if (error.message?.includes('500')) {
+        errorMessage = 'Server error - please try again later';
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -198,7 +225,7 @@ const Login = () => {
           <p>Default credentials: admin@troikachatbot.com / Admin@123456</p>
           <div className="environment-info">
             <small>
-              Backend: {process.env.REACT_APP_API_BASE_URL ? `${process.env.REACT_APP_API_BASE_URL}/api` : 'Not configured'}
+              Backend: {BACKEND_URL}/api (Hardcoded)
             </small>
           </div>
         </div>
