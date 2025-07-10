@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import './Login.css';
+import { healthService } from '../../services/health'; 
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -21,30 +22,25 @@ const Login = () => {
     checkBackendConnection();
   }, []);
 
-  const checkBackendConnection = async () => {
-    try {
-      console.log('🔍 Testing backend connection...');
-      const response = await fetch(`${BACKEND_URL}/api/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setConnectionStatus('connected');
-        console.log('✅ Backend connection successful:', data);
-      } else {
-        setConnectionStatus('error');
-        console.error('❌ Backend health check failed:', response.status, response.statusText);
-      }
-    } catch (error) {
-      console.error('❌ Backend connection check failed:', error);
-      setConnectionStatus('error');
-    }
-  };
+  
 
+const checkBackendConnection = async () => {
+  try {
+    console.log('🔍 Testing backend connection...');
+    const result = await healthService.checkConnection();
+    
+    if (result.success) {
+      setConnectionStatus('connected');
+      console.log('✅ Backend connection successful:', result.data);
+    } else {
+      setConnectionStatus('error');
+      console.error('❌ Backend health check failed:', result.error);
+    }
+  } catch (error) {
+    console.error('❌ Backend connection check failed:', error);
+    setConnectionStatus('error');
+  }
+};
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -53,86 +49,61 @@ const Login = () => {
     setError('');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!formData.email.trim() || !formData.password.trim()) {
+    setError('Please fill in all fields');
+    return;
+  }
+
+  setLoading(true);
+  setError('');
+
+  try {
+    console.log('🔐 Attempting login with authService...');
     
-    // Validate form data
-    if (!formData.email.trim() || !formData.password.trim()) {
-      setError('Please fill in all fields');
-      return;
+    // ✅ Use your authService instead of direct fetch
+    const response = await authService.login(formData.email, formData.password);
+    
+    console.log('✅ Login successful:', response);
+    
+    if (!response || !response.token) {
+      throw new Error('Invalid response from server - missing token');
     }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      console.log('🔐 Attempting login with hardcoded URL...');
-      
-      // 🔥 HARDCODED LOGIN REQUEST
-      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        }),
-      });
-
-      console.log('📡 Login response status:', response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      console.log('✅ Login successful:', data);
-      
-      // Validate response structure
-      if (!data || !data.token) {
-        throw new Error('Invalid response from server - missing token');
-      }
-      
-      // Store authentication data
-      localStorage.setItem('token', data.token);
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
-      }
-      
-      console.log('🎉 Authentication data stored, redirecting to dashboard...');
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
-      
-    } catch (error) {
-      console.error('❌ Login error:', error);
-      
-      // Enhanced error handling for specific issues
-      let errorMessage = 'Login failed';
-      
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        errorMessage = 'Network error - cannot connect to server';
-      } else if (error.message?.includes('CORS')) {
-        errorMessage = 'CORS error - please contact support';
-      } else if (error.message?.includes('404')) {
-        errorMessage = 'Login endpoint not found - please contact support';
-      } else if (error.message?.includes('401')) {
-        errorMessage = 'Invalid email or password';
-      } else if (error.message?.includes('429')) {
-        errorMessage = 'Too many login attempts - please try again later';
-      } else if (error.message?.includes('500')) {
-        errorMessage = 'Server error - please try again later';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+    
+    // Store authentication data
+    localStorage.setItem('token', response.token);
+    if (response.user) {
+      localStorage.setItem('user', JSON.stringify(response.user));
     }
-  };
+    
+    console.log('🎉 Authentication data stored, redirecting to dashboard...');
+    navigate('/dashboard');
+    
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    
+    let errorMessage = 'Login failed';
+    
+    if (error.code === 'ECONNABORTED') {
+      errorMessage = 'Request timeout - please try again';
+    } else if (error.response?.status === 401) {
+      errorMessage = 'Invalid email or password';
+    } else if (error.response?.status === 404) {
+      errorMessage = 'Login service not found';
+    } else if (error.response?.data?.error) {
+      errorMessage = error.response.data.error;
+    } else if (error.message?.includes('Network Error')) {
+      errorMessage = 'Network error - please check your connection';
+    }
+    
+    setError(errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleRetryConnection = () => {
     setConnectionStatus('checking');
