@@ -67,45 +67,51 @@ const CreateProject = () => {
     setPdfFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!formData.name.trim()) {
+    setError('Project name is required');
+    return;
+  }
+  
+  if (!formData.client_email.trim()) {
+    setError('Client email is required');
+    return;
+  }
+
+  try {
+    setLoading(true);
+    setError('');
+
+    // 🔥 Create FormData properly
+    const submitData = new FormData();
     
-    if (!formData.name.trim()) {
-      setError('Project name is required');
-      return;
-    }
+    // Add form fields
+    Object.keys(formData).forEach(key => {
+      if (formData[key] !== null && formData[key] !== undefined) {
+        submitData.append(key, formData[key].toString());
+      }
+    });
     
-    if (!formData.client_email.trim()) {
-      setError('Client email is required');
-      return;
-    }
+    // Add PDF files
+    pdfFiles.forEach((file, index) => {
+      submitData.append('pdf_files', file, file.name);
+    });
 
-    try {
-      setLoading(true);
-      setError('');
+    // 🔥 Call service with proper headers
+    const response = await projectsService.createProjectWithFiles(submitData);
+    
+    // Navigate to project details page
+    navigate(`/projects/${response.project.id}`);
+  } catch (error) {
+    console.error('Project creation error:', error);
+    setError(error.response?.data?.error || 'Failed to create project');
+  } finally {
+    setLoading(false);
+  }
+};
 
-      const submitData = new FormData();
-      
-      // Add form fields
-      Object.keys(formData).forEach(key => {
-        submitData.append(key, formData[key]);
-      });
-      
-      // Add PDF files
-      pdfFiles.forEach(file => {
-        submitData.append('pdf_files', file);
-      });
-
-      const response = await projectsService.createProject(submitData);
-      
-      // Navigate to project details page
-      navigate(`/projects/${response.project.id}`);
-    } catch (error) {
-      setError(error.response?.data?.error || 'Failed to create project');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="create-project">
