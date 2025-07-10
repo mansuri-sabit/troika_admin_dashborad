@@ -95,6 +95,28 @@ export const projectsService = {
     const response = await api.get(`/admin/projects/${id}/usage`);
     return response.data;
   },
+
+   // 🔥 Add this new method for file uploads
+  createProjectWithFiles: async (formData) => {
+    try {
+      // Create a custom axios instance for file uploads
+      const response = await axios.post(
+        'https://completetroikabackend.onrender.com/api/admin/projects',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          timeout: 30000, // 30 seconds for file uploads
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create project with files:', error);
+      throw error;
+    }
+  },
 };
 
 export default projectsService;
