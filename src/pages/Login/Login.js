@@ -22,7 +22,7 @@ const Login = () => {
   const checkBackendConnection = async () => {
     try {
       // ✅ Fixed: Add /api prefix to health check
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/health`, {
+      const response = await fetch(`https://completetroikabackend.onrender.com/api/health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
