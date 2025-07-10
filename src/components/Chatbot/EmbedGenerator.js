@@ -182,10 +182,30 @@ add_action('wp_footer', 'add_troika_chatbot');
     toast.info('Configuration reset to defaults');
   };
 
-  const testWidget = () => {
-    const testUrl = `${BACKEND_URL}/embed/${projectId}?test=true&theme=${embedConfig.theme}&color=${encodeURIComponent(embedConfig.primaryColor)}`;
-    window.open(testUrl, '_blank', 'width=400,height=600,scrollbars=yes,resizable=yes');
-  };
+const testWidget = () => {
+  // Create a test page with the widget
+  const testHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Widget Test</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <h1>Testing Troika Chatbot Widget</h1>
+        <p>The widget should appear in the bottom-right corner.</p>
+        
+        ${generateEmbedCode()}
+    </body>
+    </html>
+  `;
+  
+  // Open in new window
+  const testWindow = window.open('', '_blank', 'width=800,height=600');
+  testWindow.document.write(testHtml);
+  testWindow.document.close();
+};
 
   if (loading) {
     return (
