@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth';
+import api from '../../services/api';
 import LoadingSpinner from '../../components/Common/LoadingSpinner';
 import './Login.css';
-import { healthService } from '../../services/health'; 
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -12,130 +13,211 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [connectionStatus, setConnectionStatus] = useState('checking');
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
-  // 🔥 HARDCODED BACKEND URL - No environment variables
-  const BACKEND_URL = 'https://completetroikabackend.onrender.com';
-
-  // Check backend connectivity on component mount
+  // Check if user is already authenticated
   useEffect(() => {
-    checkBackendConnection();
-  }, []);
-
-  
-
-const checkBackendConnection = async () => {
-  try {
-    console.log('🔍 Testing backend connection...');
-    const result = await healthService.checkConnection();
-    
-    if (result.success) {
-      setConnectionStatus('connected');
-      console.log('✅ Backend connection successful:', result.data);
-    } else {
-      setConnectionStatus('error');
-      console.error('❌ Backend health check failed:', result.error);
+    if (authService.isAuthenticated()) {
+      console.log('🔐 User already authenticated, redirecting to dashboard');
+      navigate('/dashboard');
+      return;
     }
-  } catch (error) {
-    console.error('❌ Backend connection check failed:', error);
-    setConnectionStatus('error');
-  }
-};
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    setError('');
+    
+    checkBackendConnection();
+  }, [navigate]);
+
+  // Health check using your API service
+  const checkBackendConnection = async () => {
+    setConnectionStatus('checking');
+    try {
+      console.log('🔍 Testing backend connection...');
+      
+      const response = await api.get('/health');
+      
+      if (response.status === 200) {
+        setConnectionStatus('connected');
+        console.log('✅ Backend connection successful:', response.data);
+      } else {
+        setConnectionStatus('error');
+        console.error('❌ Backend health check failed:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Backend connection check failed:', error);
+      setConnectionStatus('error');
+      
+      // Set a user-friendly error message based on the error type
+      if (error.code === 'ECONNABORTED') {
+        console.log('⏱️ Connection timeout');
+      } else if (error.message?.includes('Network Error')) {
+        console.log('🌐 Network error detected');
+      } else if (error.response?.status) {
+        console.log(`📡 HTTP Error: ${error.response.status}`);
+      }
+    }
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!formData.email.trim() || !formData.password.trim()) {
-    setError('Please fill in all fields');
-    return;
-  }
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error when user starts typing
+    if (error) {
+      setError('');
+    }
+  };
 
-  setLoading(true);
-  setError('');
-
-  try {
-    console.log('🔐 Attempting login with authService...');
-    
-    // ✅ Use your authService instead of direct fetch
-    const response = await authService.login(formData.email, formData.password);
-    
-    console.log('✅ Login successful:', response);
-    
-    if (!response || !response.token) {
-      throw new Error('Invalid response from server - missing token');
+  const validateForm = () => {
+    if (!formData.email.trim()) {
+      setError('Email address is required');
+      return false;
     }
     
-    // Store authentication data
-    localStorage.setItem('token', response.token);
-    if (response.user) {
-      localStorage.setItem('user', JSON.stringify(response.user));
+    if (!formData.password.trim()) {
+      setError('Password is required');
+      return false;
     }
     
-    console.log('🎉 Authentication data stored, redirecting to dashboard...');
-    navigate('/dashboard');
-    
-  } catch (error) {
-    console.error('❌ Login error:', error);
-    
-    let errorMessage = 'Login failed';
-    
-    if (error.code === 'ECONNABORTED') {
-      errorMessage = 'Request timeout - please try again';
-    } else if (error.response?.status === 401) {
-      errorMessage = 'Invalid email or password';
-    } else if (error.response?.status === 404) {
-      errorMessage = 'Login service not found';
-    } else if (error.response?.data?.error) {
-      errorMessage = error.response.data.error;
-    } else if (error.message?.includes('Network Error')) {
-      errorMessage = 'Network error - please check your connection';
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
+      return false;
     }
     
-    setError(errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+    return true;
+  };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      console.log('🔐 Attempting login...');
+      console.log('📧 Email:', formData.email);
+      
+      // Use your authService for login
+      const response = await authService.login(formData.email, formData.password);
+      
+      console.log('✅ Login response received:', {
+        hasToken: !!response.token,
+        hasUser: !!response.user,
+        userRole: response.user?.role
+      });
+      
+      // Validate response structure
+      if (!response || !response.token) {
+        throw new Error('Invalid response from server - missing authentication token');
+      }
+      
+      // Store authentication data (authService handles this, but let's be explicit)
+      localStorage.setItem('token', response.token);
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+        console.log('👤 User data stored:', response.user.email, response.user.role);
+      }
+      
+      console.log('🎉 Authentication successful, redirecting to dashboard...');
+      
+      // Small delay to show success state
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 500);
+      
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      
+      // Enhanced error handling with specific messages
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timeout. Please check your connection and try again.';
+      } else if (error.message?.includes('Network Error')) {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Invalid email or password. Please check your credentials.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Login service not found. Please contact support.';
+      } else if (error.response?.status === 429) {
+        errorMessage = 'Too many login attempts. Please try again in a few minutes.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later or contact support.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message && !error.message.includes('Request failed')) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRetryConnection = () => {
-    setConnectionStatus('checking');
     checkBackendConnection();
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const fillDefaultCredentials = () => {
+    setFormData({
+      email: 'admin@troikachatbot.com',
+      password: 'Admin@123456'
+    });
+    setError('');
   };
 
   return (
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h1>Troika Tech Admin</h1>
-          <p>Sign in to your account</p>
+          <div className="logo-section">
+            <h1>Troika Tech Admin</h1>
+            <p>Sign in to your account</p>
+          </div>
           
           {/* Connection Status Indicator */}
           <div className={`connection-status ${connectionStatus}`}>
             {connectionStatus === 'checking' && (
-              <span>🔄 Checking connection...</span>
+              <div className="status-item">
+                <span className="status-icon">🔄</span>
+                <span>Checking connection...</span>
+              </div>
             )}
             {connectionStatus === 'connected' && (
-              <span>🟢 Connected to backend</span>
+              <div className="status-item success">
+                <span className="status-icon">🟢</span>
+                <span>Connected to backend</span>
+              </div>
             )}
             {connectionStatus === 'error' && (
-              <span>
-                🔴 Connection error 
+              <div className="status-item error">
+                <span className="status-icon">🔴</span>
+                <span>Connection error</span>
                 <button 
                   type="button" 
                   className="retry-btn"
                   onClick={handleRetryConnection}
+                  disabled={loading}
                 >
                   Retry
                 </button>
-              </span>
+              </div>
             )}
           </div>
         </div>
@@ -144,7 +226,7 @@ const handleSubmit = async (e) => {
           {error && (
             <div className="error-message">
               <span className="error-icon">⚠️</span>
-              {error}
+              <span className="error-text">{error}</span>
             </div>
           )}
           
@@ -157,23 +239,35 @@ const handleSubmit = async (e) => {
               value={formData.email}
               onChange={handleChange}
               required
-              placeholder="Enter your email"
+              placeholder="Enter your email address"
               disabled={loading || connectionStatus === 'error'}
+              autoComplete="email"
             />
           </div>
           
           <div className="form-group">
             <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              placeholder="Enter your password"
-              disabled={loading || connectionStatus === 'error'}
-            />
+            <div className="password-input-container">
+              <input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                placeholder="Enter your password"
+                disabled={loading || connectionStatus === 'error'}
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={togglePasswordVisibility}
+                disabled={loading || connectionStatus === 'error'}
+              >
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
           </div>
           
           <button 
@@ -182,10 +276,10 @@ const handleSubmit = async (e) => {
             disabled={loading || connectionStatus === 'error'}
           >
             {loading ? (
-              <>
+              <div className="loading-content">
                 <LoadingSpinner size="small" />
                 <span>Signing In...</span>
-              </>
+              </div>
             ) : (
               'Sign In'
             )}
@@ -193,10 +287,27 @@ const handleSubmit = async (e) => {
         </form>
         
         <div className="login-footer">
-          <p>Default credentials: admin@troikachatbot.com / Admin@123456</p>
+          <div className="default-credentials">
+            <p>Need test credentials?</p>
+            <button 
+              type="button" 
+              className="fill-credentials-btn"
+              onClick={fillDefaultCredentials}
+              disabled={loading}
+            >
+              Use Default Credentials
+            </button>
+          </div>
+          
           <div className="environment-info">
             <small>
-              Backend: {BACKEND_URL}/api (Hardcoded)
+              Backend: https://completetroikabackend.onrender.com/api
+            </small>
+            <small>
+              Status: <span className={`status-text ${connectionStatus}`}>
+                {connectionStatus === 'connected' ? 'Online' : 
+                 connectionStatus === 'checking' ? 'Checking...' : 'Offline'}
+              </span>
             </small>
           </div>
         </div>
