@@ -195,7 +195,8 @@ const Login = () => {
           <p>Default credentials: admin@troikachatbot.com / Admin@123456</p>
           <div className="environment-info">
             <small>
-              Backend: {process.env.REACT_APP_API_BASE_URL || 'Not configured'}
+           Backend: {process.env.REACT_APP_API_BASE_URL ? `${process.env.REACT_APP_API_BASE_URL}/api` : 'Not configured'}
+
             </small>
           </div>
         </div>
