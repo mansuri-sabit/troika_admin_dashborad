@@ -21,7 +21,8 @@ const Login = () => {
 
   const checkBackendConnection = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/health`, {
+      // ✅ Fixed: Add /api prefix to health check
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -30,8 +31,10 @@ const Login = () => {
       
       if (response.ok) {
         setConnectionStatus('connected');
+        console.log('✅ Backend connection successful');
       } else {
         setConnectionStatus('error');
+        console.error('❌ Backend health check failed:', response.status);
       }
     } catch (error) {
       console.error('Backend connection check failed:', error);
@@ -122,7 +125,7 @@ const Login = () => {
               <span>🔄 Checking connection...</span>
             )}
             {connectionStatus === 'connected' && (
-              <span>🟢 Connected</span>
+              <span>🟢 Connected to backend</span>
             )}
             {connectionStatus === 'error' && (
               <span>
@@ -195,8 +198,7 @@ const Login = () => {
           <p>Default credentials: admin@troikachatbot.com / Admin@123456</p>
           <div className="environment-info">
             <small>
-           Backend: {process.env.REACT_APP_API_BASE_URL ? `${process.env.REACT_APP_API_BASE_URL}/api` : 'Not configured'}
-
+              Backend: {process.env.REACT_APP_API_BASE_URL ? `${process.env.REACT_APP_API_BASE_URL}/api` : 'Not configured'}
             </small>
           </div>
         </div>
