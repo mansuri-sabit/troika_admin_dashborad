@@ -11,19 +11,28 @@ export const chatbotService = {
     }
   },
 
-  sendMessage: async ({ sessionId, projectId, message }) => {
-    try {
-      const response = await api.post('/chatbot/message', {
-        sessionId,
-        projectId,
-        message
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Send message error:', error);
-      throw error;
+// Enhanced chatbot service with OpenAI streaming
+sendMessage: async ({ sessionId, projectId, message, stream = false }) => {
+  try {
+    const response = await api.post('/chatbot/message', {
+      sessionId,
+      projectId,
+      message,
+      stream,
+      model: 'gpt-4o', // Based on your project configuration
+    });
+    
+    if (stream) {
+      return response; // Return stream for real-time responses
     }
-  },
+    
+    return response.data;
+  } catch (error) {
+    console.error('Send message error:', error);
+    throw error;
+  }
+},
+
 
   getSessionHistory: async (sessionId) => {
     try {
